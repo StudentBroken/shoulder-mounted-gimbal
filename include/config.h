@@ -26,8 +26,11 @@
 #define RGB_BREATH_PERIOD_MS 3600 // 3.6s Apple-style breathing cycle (16.6 breaths/min)
 
 // ------------------------------------------------------------------------------
-// Wi-Fi SoftAP & Embedded Web Server
+// Wireless App Mode (BLE Web Bluetooth vs Direct Wi-Fi SoftAP)
+//   - COMM_MODE_BLE  (0): Default! Advertises BLE GATT for leds.html (Wi-Fi SoftAP OFF, ESP-NOW ON)
+//   - COMM_MODE_WIFI (1): Direct Wi-Fi SoftAP ("Gimbal-Tactical-Pod", http://192.168.4.1) + BLE + ESP-NOW
 // ------------------------------------------------------------------------------
+#define DEFAULT_COMM_MODE   0           // 0 = COMM_MODE_BLE (default), 1 = COMM_MODE_WIFI
 #define WIFI_AP_SSID        "Gimbal-Tactical-Pod"
 #define WIFI_AP_PASS        "12345678"  // WPA2 Password for reliable beaconing & phone discovery
 #define WIFI_AP_CHANNEL     1           // Fixed to Channel 1 (Ensures ESP-NOW coexistence)
@@ -46,18 +49,24 @@
 
 
 // ------------------------------------------------------------------------------
-// Dual MPU6050 IMU Configuration
+// Dual 6-DOF IMU Configuration (Auto-Detects Bosch GY-BMI160 & MPU6050)
 // ------------------------------------------------------------------------------
-#define IMU_ADDR_SHOULDER   0x68 // MPU6050 mounted on shoulder (AD0 tied to GND)
-#define IMU_ADDR_NECK       0x69 // MPU6050 mounted on neck/head (AD0 tied to 3.3V)
+#define IMU_ADDR_SHOULDER   0x68 // IMU mounted on shoulder (SAO/AD0 tied to GND)
+#define IMU_ADDR_NECK       0x69 // IMU mounted on neck/head (SAO/AD0 tied to 3.3V)
 
 #define I2C_CLOCK_SPEED_HZ  100000 // 100kHz Standard-mode I2C (robust against harness cable capacitance)
 #define IMU_SAMPLE_RATE_HZ  50     // 50Hz sensor fusion and servo update rate (20ms loop)
-#define COMPLEMENTARY_ALPHA 0.96f  // Complementary filter weight (0.96 gyro / 0.04 accel pitch)
+#define COMPLEMENTARY_ALPHA 0.985f // Complementary filter weight (0.985 gyro / 0.015 gravity-gated accel)
+
+// Anti-Drift & Anti-Jitter Sensor Fusion Tuning:
+#define GYRO_DEADZONE_DPS         0.30f  // Smooth yaw rate deadzone (deg/s) to stop stationary micro-creep
+#define GYRO_STILL_THRESHOLD_DPS  1.25f  // Angular rate threshold (deg/s) for stationary auto-bias learning
+#define GYRO_BIAS_LEARN_RATE      0.025f // Continuous stationary gyro bias adaptation speed (eliminates thermal drift)
+#define SERVO_DEADBAND_DEG        0.22f  // Sub-degree PWM hysteresis to stop servo hunting/buzzing at rest
 
 // Invert tracking directions if your servo mounting or IMU orientation is flipped:
-#define YAW_DIRECTION_SIGN    -1.0f  // +1.0f = normal, -1.0f = inverted (Active)
-#define PITCH_DIRECTION_SIGN  -1.0f  // +1.0f = normal, -1.0f = inverted (Active)
+#define YAW_DIRECTION_SIGN    -1.0f  // +1.0f = normal, -1.0f = inverted (Normal for 3D gravity-aligned yaw)
+#define PITCH_DIRECTION_SIGN  -1.0f  // +1.0f = normal, -1.0f = inverted (Normal for pitch tilt)
 
 // ------------------------------------------------------------------------------
 // Servo Geometry & Travel Limits

@@ -117,9 +117,15 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
   .btn-fire { background: linear-gradient(135deg, #d90429, #9a031e); border: 1px solid var(--red); box-shadow: 0 4px 18px var(--red-glow); grid-column: span 2; }
   .btn-calib { background: rgba(255,183,0,0.12); color: var(--amber); border: 1px solid rgba(255,183,0,0.3); grid-column: span 2; padding: 10px; font-size: 11px; }
 
-  .color-presets { display: flex; gap: 8px; margin: 10px 0; }
+  .color-presets { display: flex; align-items: center; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
   .swatch { width: 30px; height: 30px; border-radius: 8px; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; transition: transform 0.15s, border-color 0.15s; }
   .swatch:hover, .swatch.active { transform: scale(1.15); border-color: #fff; }
+  .color-picker-input { width: 34px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: transparent; cursor: pointer; padding: 0; }
+  .pattern-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+  .pattern-btn { background: rgba(255,255,255,0.05); border: 1px solid var(--border-dim); border-radius: 8px; padding: 8px 4px; font-size: 10px; font-weight: 800; color: var(--text-dim); text-transform: uppercase; cursor: pointer; text-align: center; transition: all 0.15s; }
+  .pattern-btn.active { background: rgba(0,240,255,0.18); border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 12px var(--cyan-glow); }
+  .mesh-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-dim); border-radius: 8px; }
+  .mesh-node-tag { font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 6px; display: flex; align-items: center; gap: 5px; }
 
   .slider-group { margin: 12px 0; }
   .slider-header { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
@@ -309,12 +315,15 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
       </div>
     </div>
     <div class="header-actions">
+      <button class="btn-rc-launch" style="background:linear-gradient(135deg,#b026ff,#5a189a);border-color:var(--purple);color:#fff;" onclick="switchToBleMode()">
+        <span>&#128225; SWITCH TO BLE</span>
+      </button>
       <button class="btn-rc-launch" onclick="openRcCockpit()">
         <span>&#127918; RC COCKPIT</span>
       </button>
       <div class="network-badge">
         <div class="dot"></div>
-        <span id="headerStatus">AP ACTIVE</span>
+        <span id="headerStatus">WIFI + BLE</span>
       </div>
     </div>
   </header>
@@ -437,59 +446,155 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 
   <!-- LED & Dynamic Settings Deck -->
   <div class="grid-2">
-    <!-- LED Controls -->
+    <!-- LED Controls (Suit-Wide ESP-NOW Mesh Master) -->
     <div class="card">
       <div class="card-header">
-        <div class="card-title">&#128161; Barrel RGB LEDs</div>
-        <div class="subtitle">DUAL PIXELS (GPIO 21)</div>
+        <div class="card-title">&#128161; Suit Mesh RGB Animation Studio</div>
+        <div class="status-pill pill-blue" id="suitLedActivePill">STANDBY WAVE</div>
       </div>
+      <div class="mesh-bar">
+        <div class="mesh-node-tag pill-green" id="meshGimbalTag">&#9679; GIMBAL (HIGH)</div>
+        <div class="mesh-node-tag pill-amber" id="meshChestTag">&#9675; VEST CHEST (MID)</div>
+        <div class="mesh-node-tag pill-amber" id="meshBackTag">&#9675; VEST BACK (MID)</div>
+        <div class="mesh-node-tag pill-amber" id="meshWsTag">&#9675; WEBSHOOTER (LOW)</div>
+      </div>
+
+      <!-- App Mode Override / Live Preview -->
       <div class="slider-group">
         <div class="slider-header">
-          <span>Standby Color</span>
+          <span>App Mode &amp; State Control</span>
+          <span id="overrideModeLbl" style="color:var(--emerald);font-weight:800;">AUTO (EITHER ARMED)</span>
+        </div>
+        <div class="pattern-grid" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="pattern-btn active" id="ovBtn255" onclick="setOverrideState(255)">Auto Suit</div>
+          <div class="pattern-btn" id="ovBtn0" onclick="setOverrideState(0)">Preview Idle</div>
+          <div class="pattern-btn" id="ovBtn1" onclick="setOverrideState(1)">Preview Armed</div>
+          <div class="pattern-btn" id="ovBtn2" onclick="setOverrideState(2)">Preview Fire</div>
+        </div>
+      </div>
+
+      <!-- One-Tap Complete Suit Scene Presets -->
+      <div class="slider-group">
+        <div class="slider-header">
+          <span>One-Tap Suit Scene Presets</span>
+          <span style="color:var(--text-dim);font-size:10px;">FULL PROFILE</span>
+        </div>
+        <div class="pattern-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <div class="pattern-btn" onclick="applySuitPreset('default_wave')">&#127754; Low&rarr;High Wave</div>
+          <div class="pattern-btn" onclick="applySuitPreset('tactical_red')">&#128680; Tactical Ops</div>
+          <div class="pattern-btn" onclick="applySuitPreset('iron_spider')">&#9889; Iron Spider</div>
+          <div class="pattern-btn" onclick="applySuitPreset('symbiote')">&#128302; Symbiote</div>
+          <div class="pattern-btn" onclick="applySuitPreset('cyber_rainbow')">&#127752; Cyber Flow</div>
+          <div class="pattern-btn" onclick="applySuitPreset('stealth')">&#128065; Stealth Dark</div>
+        </div>
+      </div>
+
+      <!-- Traveling Wave Direction & Spread (Webshooter Low -> Vest Mid -> Gimbal High) -->
+      <div class="slider-group" style="background:rgba(0,240,255,0.04);border:1px solid var(--border-dim);padding:10px;border-radius:8px;">
+        <div class="slider-header">
+          <span>Vertical Wave Order (WS &rarr; Vest &rarr; Gimbal)</span>
+          <span id="waveModeVal" style="color:var(--cyan);font-weight:800;">LOW &rarr; HIGH WAVE</span>
+        </div>
+        <div class="pattern-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <div class="pattern-btn active" id="waveBtn1" onclick="setWaveMode(1, 'LOW → HIGH WAVE')">Low &rarr; High<br><small style="font-size:8px;opacity:0.75;">WS &rarr; Vest &rarr; Gimbal</small></div>
+          <div class="pattern-btn" id="waveBtn2" onclick="setWaveMode(2, 'HIGH → LOW WAVE')">High &rarr; Low<br><small style="font-size:8px;opacity:0.75;">Gimbal &rarr; Vest &rarr; WS</small></div>
+          <div class="pattern-btn" id="waveBtn0" onclick="setWaveMode(0, 'UNISON SYNC')">Unison Sync<br><small style="font-size:8px;opacity:0.75;">All Nodes Together</small></div>
+        </div>
+        <div class="slider-header" style="margin-top:8px;">
+          <span>Wave Phase Delay Per Tier</span>
+          <span id="waveOffsetVal">30%</span>
+        </div>
+        <input type="range" id="waveOffsetSlider" min="0" max="50" step="5" value="30" oninput="document.getElementById('waveOffsetVal').innerText = this.value + '%'" onchange="saveLedSettings()">
+      </div>
+
+      <!-- Standby / Disarmed Animation -->
+      <div class="slider-group">
+        <div class="slider-header">
+          <span>Standby Animation (Disarmed)</span>
+          <span id="patternNameVal" style="color:var(--cyan);font-weight:800;">APPLE BREATH</span>
+        </div>
+        <div class="pattern-grid">
+          <div class="pattern-btn active" id="patBtn0" onclick="setLedPattern(0, 'APPLE BREATH')">Apple Breath</div>
+          <div class="pattern-btn" id="patBtn5" onclick="setLedPattern(5, 'SOFT FLASH')">Soft Flash</div>
+          <div class="pattern-btn" id="patBtn3" onclick="setLedPattern(3, 'HEARTBEAT')">Heartbeat</div>
+          <div class="pattern-btn" id="patBtn7" onclick="setLedPattern(7, 'REACTOR SURGE')">Reactor Surge</div>
+          <div class="pattern-btn" id="patBtn8" onclick="setLedPattern(8, 'RAINBOW FLOW')">Rainbow Flow</div>
+          <div class="pattern-btn" id="patBtn1" onclick="setLedPattern(1, 'SOLID GLOW')">Solid Glow</div>
+        </div>
+        <div class="slider-header" style="margin-top:8px;">
+          <span>Standby Pulse Period</span>
+          <span id="breathPeriodVal">3600 ms</span>
+        </div>
+        <input type="range" id="breathPeriodSlider" min="600" max="6000" step="100" value="3600" oninput="document.getElementById('breathPeriodVal').innerText = this.value + ' ms'" onchange="saveLedSettings()">
+      </div>
+
+      <!-- Armed Animation (Active when EITHER Webshooter OR Gimbal is Armed) -->
+      <div class="slider-group" style="background:rgba(255,42,85,0.05);border:1px solid rgba(255,42,85,0.22);padding:10px;border-radius:8px;">
+        <div class="slider-header">
+          <span>Armed Animation (WS or Gimbal Armed)</span>
+          <span id="armedPatternNameVal" style="color:var(--red);font-weight:800;">SOFT ARMED FLASH</span>
+        </div>
+        <div class="pattern-grid">
+          <div class="pattern-btn active" id="armPatBtn5" onclick="setArmedPattern(5, 'SOFT ARMED FLASH')">Soft Armed Flash</div>
+          <div class="pattern-btn" id="armPatBtn2" onclick="setArmedPattern(2, 'FAST PULSE')">Fast Pulse</div>
+          <div class="pattern-btn" id="armPatBtn6" onclick="setArmedPattern(6, 'TACTICAL STROBE')">Tactical Strobe</div>
+          <div class="pattern-btn" id="armPatBtn7" onclick="setArmedPattern(7, 'REACTOR SURGE')">Reactor Surge</div>
+          <div class="pattern-btn" id="armPatBtn3" onclick="setArmedPattern(3, 'HEARTBEAT')">Heartbeat</div>
+          <div class="pattern-btn" id="armPatBtn1" onclick="setArmedPattern(1, 'SOLID LOCK')">Solid Lock</div>
+        </div>
+        <div class="slider-header" style="margin-top:8px;">
+          <span>Armed Flash Cycle Period</span>
+          <span id="armedPeriodVal">1100 ms</span>
+        </div>
+        <input type="range" id="armedPeriodSlider" min="300" max="3000" step="50" value="1100" oninput="document.getElementById('armedPeriodVal').innerText = this.value + ' ms'" onchange="saveLedSettings()">
+      </div>
+
+      <!-- Standby & Armed Colors -->
+      <div class="slider-group">
+        <div class="slider-header">
+          <span>Standby Color (Folded / Disarmed)</span>
           <span id="standbyColorHex">#FFFFFF</span>
         </div>
         <div class="color-presets">
-          <div class="swatch active" style="background:#FFFFFF;" onclick="setStandbyColor(255,255,255,'#FFFFFF')"></div>
-          <div class="swatch" style="background:#00F0FF;" onclick="setStandbyColor(0,240,255,'#00F0FF')"></div>
-          <div class="swatch" style="background:#00FF9D;" onclick="setStandbyColor(0,255,157,'#00FF9D')"></div>
-          <div class="swatch" style="background:#FFB700;" onclick="setStandbyColor(255,183,0,'#FFB700')"></div>
-          <div class="swatch" style="background:#B026FF;" onclick="setStandbyColor(176,38,255,'#B026FF')"></div>
+          <div class="swatch active" style="background:#FFFFFF;" onclick="setStandbyColor(255,255,255,'#FFFFFF',true)"></div>
+          <div class="swatch" style="background:#00F0FF;" onclick="setStandbyColor(0,240,255,'#00F0FF',true)"></div>
+          <div class="swatch" style="background:#FF0000;" onclick="setStandbyColor(255,0,0,'#FF0000',true)"></div>
+          <div class="swatch" style="background:#00FF9D;" onclick="setStandbyColor(0,255,157,'#00FF9D',true)"></div>
+          <div class="swatch" style="background:#FFB700;" onclick="setStandbyColor(255,183,0,'#FFB700',true)"></div>
+          <div class="swatch" style="background:#B026FF;" onclick="setStandbyColor(176,38,255,'#B026FF',true)"></div>
+          <input type="color" id="standbyPicker" class="color-picker-input" value="#ffffff" onchange="onCustomColorPick('standby', this.value)">
         </div>
       </div>
       <div class="slider-group">
         <div class="slider-header">
-          <span>Deployed Color</span>
-          <span id="deployedColorHex">#FF2A55</span>
+          <span>Armed Color (WS or Gimbal Deployed)</span>
+          <span id="deployedColorHex">#FF0000</span>
         </div>
         <div class="color-presets">
-          <div class="swatch active" style="background:#FF2A55;" onclick="setDeployedColor(255,42,85,'#FF2A55')"></div>
-          <div class="swatch" style="background:#FF6D00;" onclick="setDeployedColor(255,109,0,'#FF6D00')"></div>
-          <div class="swatch" style="background:#76FF03;" onclick="setDeployedColor(118,255,3,'#76FF03')"></div>
-          <div class="swatch" style="background:#00F0FF;" onclick="setDeployedColor(0,240,255,'#00F0FF')"></div>
+          <div class="swatch active" style="background:#FF0000;" onclick="setDeployedColor(255,0,0,'#FF0000',true)"></div>
+          <div class="swatch" style="background:#FF6D00;" onclick="setDeployedColor(255,109,0,'#FF6D00',true)"></div>
+          <div class="swatch" style="background:#00F0FF;" onclick="setDeployedColor(0,240,255,'#00F0FF',true)"></div>
+          <div class="swatch" style="background:#003CFF;" onclick="setDeployedColor(0,60,255,'#003CFF',true)"></div>
+          <div class="swatch" style="background:#76FF03;" onclick="setDeployedColor(118,255,3,'#76FF03',true)"></div>
+          <div class="swatch" style="background:#B026FF;" onclick="setDeployedColor(176,38,255,'#B026FF',true)"></div>
+          <input type="color" id="deployedPicker" class="color-picker-input" value="#ff0000" onchange="onCustomColorPick('deployed', this.value)">
         </div>
       </div>
       <div class="slider-group">
         <div class="slider-header">
-          <span>Min Floor Brightness (Never 0%)</span>
+          <span>Min Floor Brightness (Low Point)</span>
           <span id="minBrightVal">12</span>
         </div>
-        <input type="range" id="minBrightSlider" min="2" max="60" value="12" oninput="document.getElementById('minBrightVal').innerText = this.value">
+        <input type="range" id="minBrightSlider" min="0" max="100" value="12" oninput="document.getElementById('minBrightVal').innerText = this.value" onchange="saveLedSettings()">
       </div>
       <div class="slider-group">
         <div class="slider-header">
-          <span>Max Peak Brightness</span>
+          <span>Max Peak Brightness (High Point)</span>
           <span id="maxBrightVal">220</span>
         </div>
-        <input type="range" id="maxBrightSlider" min="80" max="255" value="220" oninput="document.getElementById('maxBrightVal').innerText = this.value">
+        <input type="range" id="maxBrightSlider" min="60" max="255" value="220" oninput="document.getElementById('maxBrightVal').innerText = this.value" onchange="saveLedSettings()">
       </div>
-      <div class="slider-group">
-        <div class="slider-header">
-          <span>Breathing Cycle Period</span>
-          <span id="breathPeriodVal">3600 ms</span>
-        </div>
-        <input type="range" id="breathPeriodSlider" min="1500" max="6000" step="100" value="3600" oninput="document.getElementById('breathPeriodVal').innerText = this.value + ' ms'">
-      </div>
-      <button class="apply-btn" onclick="saveLedSettings()">Apply LED Settings</button>
+      <button class="apply-btn" onclick="saveLedSettings()">Sync All Suit LEDs &amp; Save</button>
     </div>
 
     <!-- Gimbal Motion Tuning -->
@@ -650,7 +755,12 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
 
 <script>
   let standbyR = 255, standbyG = 255, standbyB = 255;
-  let deployedR = 255, deployedG = 42, deployedB = 85;
+  let deployedR = 255, deployedG = 0, deployedB = 0;
+  let ledPattern = 0;
+  let armedPattern = 5;
+  let waveMode = 1;
+  let overrideState = 255;
+  let settingsHydrated = false;
   let currentRcYaw = 90.0, currentRcPitch = 110.0;
   let currentRcMode = false;
   let isDraggingJoy = false;
@@ -660,6 +770,19 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     t.innerText = msg;
     t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  function switchToBleMode() {
+    fetch('/api/cmd', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'action=comm_mode&mode=0'
+    })
+    .then(r => r.json())
+    .then(d => {
+      showToast(d.message || 'Switched to BLE Mode (Wi-Fi AP Off)');
+    })
+    .catch(() => showToast('Switched to BLE Mode'));
   }
 
   function openRcCockpit() {
@@ -756,16 +879,168 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     sendCmd('rc_center');
   }
 
-  function setStandbyColor(r, g, b, hex) {
-    standbyR = r; standbyG = g; standbyB = b;
-    document.getElementById('standbyColorHex').innerText = hex;
-    showToast('Standby color selected: ' + hex);
+  function rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(x => Number(x).toString(16).padStart(2, '0')).join('').toUpperCase();
   }
 
-  function setDeployedColor(r, g, b, hex) {
+  const patNames = {
+    0: 'APPLE BREATH',
+    1: 'SOLID GLOW',
+    2: 'FAST PULSE',
+    3: 'HEARTBEAT',
+    4: 'STEALTH OFF',
+    5: 'SOFT ARMED FLASH',
+    6: 'TACTICAL STROBE',
+    7: 'REACTOR SURGE',
+    8: 'RAINBOW FLOW'
+  };
+
+  function setLedPattern(patId, patName, autoSave = true) {
+    ledPattern = patId;
+    const lbl = document.getElementById('patternNameVal');
+    if (lbl) lbl.innerText = patName || patNames[patId] || 'APPLE BREATH';
+    [0, 1, 2, 3, 4, 5, 7, 8].forEach(i => {
+      const btn = document.getElementById('patBtn' + i);
+      if (btn) btn.className = 'pattern-btn' + (i === patId ? ' active' : '');
+    });
+    if (autoSave) saveLedSettings();
+  }
+
+  function setArmedPattern(patId, patName, autoSave = true) {
+    armedPattern = patId;
+    const lbl = document.getElementById('armedPatternNameVal');
+    if (lbl) lbl.innerText = patName || patNames[patId] || 'SOFT ARMED FLASH';
+    [1, 2, 3, 5, 6, 7].forEach(i => {
+      const btn = document.getElementById('armPatBtn' + i);
+      if (btn) btn.className = 'pattern-btn' + (i === patId ? ' active' : '');
+    });
+    if (autoSave) saveLedSettings();
+  }
+
+  function setWaveMode(modeId, modeName, autoSave = true) {
+    waveMode = modeId;
+    const lbl = document.getElementById('waveModeVal');
+    const names = { 0: 'UNISON SYNC', 1: 'LOW → HIGH WAVE', 2: 'HIGH → LOW WAVE' };
+    if (lbl) lbl.innerText = modeName || names[modeId] || 'LOW → HIGH WAVE';
+    [0, 1, 2].forEach(i => {
+      const btn = document.getElementById('waveBtn' + i);
+      if (btn) btn.className = 'pattern-btn' + (i === modeId ? ' active' : '');
+    });
+    if (autoSave) saveLedSettings();
+  }
+
+  function setOverrideState(ovId, autoSave = true) {
+    overrideState = ovId;
+    const lbl = document.getElementById('overrideModeLbl');
+    const names = {
+      255: 'AUTO (EITHER ARMED)',
+      0: 'FORCED STANDBY PREVIEW',
+      1: 'FORCED ARMED PREVIEW',
+      2: 'FORCED FIRING PREVIEW'
+    };
+    if (lbl) {
+      lbl.innerText = names[ovId] || 'AUTO (EITHER ARMED)';
+      lbl.style.color = (ovId === 255) ? 'var(--emerald)' : (ovId === 0 ? 'var(--cyan)' : 'var(--red)');
+    }
+    [255, 0, 1, 2].forEach(i => {
+      const btn = document.getElementById('ovBtn' + i);
+      if (btn) btn.className = 'pattern-btn' + (i === ovId ? ' active' : '');
+    });
+    if (autoSave) saveLedSettings();
+  }
+
+  function applySuitPreset(presetKey) {
+    if (presetKey === 'default_wave') {
+      setStandbyColor(255, 255, 255, '#FFFFFF', false);
+      setDeployedColor(255, 0, 0, '#FF0000', false);
+      setLedPattern(0, 'APPLE BREATH', false);
+      setArmedPattern(5, 'SOFT ARMED FLASH', false);
+      setWaveMode(1, 'LOW → HIGH WAVE', false);
+      document.getElementById('waveOffsetSlider').value = 30;
+      document.getElementById('waveOffsetVal').innerText = '30%';
+      document.getElementById('breathPeriodSlider').value = 3600;
+      document.getElementById('breathPeriodVal').innerText = '3600 ms';
+      document.getElementById('armedPeriodSlider').value = 1100;
+      document.getElementById('armedPeriodVal').innerText = '1100 ms';
+    } else if (presetKey === 'tactical_red') {
+      setStandbyColor(0, 240, 255, '#00F0FF', false);
+      setDeployedColor(255, 0, 0, '#FF0000', false);
+      setLedPattern(0, 'APPLE BREATH', false);
+      setArmedPattern(6, 'TACTICAL STROBE', false);
+      setWaveMode(1, 'LOW → HIGH WAVE', false);
+      document.getElementById('waveOffsetSlider').value = 25;
+      document.getElementById('waveOffsetVal').innerText = '25%';
+      document.getElementById('breathPeriodSlider').value = 3000;
+      document.getElementById('breathPeriodVal').innerText = '3000 ms';
+      document.getElementById('armedPeriodSlider').value = 950;
+      document.getElementById('armedPeriodVal').innerText = '950 ms';
+    } else if (presetKey === 'iron_spider') {
+      setStandbyColor(255, 183, 0, '#FFB700', false);
+      setDeployedColor(255, 0, 0, '#FF0000', false);
+      setLedPattern(7, 'REACTOR SURGE', false);
+      setArmedPattern(5, 'SOFT ARMED FLASH', false);
+      setWaveMode(1, 'LOW → HIGH WAVE', false);
+      document.getElementById('waveOffsetSlider').value = 30;
+      document.getElementById('waveOffsetVal').innerText = '30%';
+      document.getElementById('breathPeriodSlider').value = 2800;
+      document.getElementById('breathPeriodVal').innerText = '2800 ms';
+      document.getElementById('armedPeriodSlider').value = 900;
+      document.getElementById('armedPeriodVal').innerText = '900 ms';
+    } else if (presetKey === 'symbiote') {
+      setStandbyColor(176, 38, 255, '#B026FF', false);
+      setDeployedColor(255, 0, 85, '#FF0055', false);
+      setLedPattern(3, 'HEARTBEAT', false);
+      setArmedPattern(5, 'SOFT ARMED FLASH', false);
+      setWaveMode(2, 'HIGH → LOW WAVE', false);
+      document.getElementById('waveOffsetSlider').value = 30;
+      document.getElementById('waveOffsetVal').innerText = '30%';
+      document.getElementById('breathPeriodSlider').value = 3200;
+      document.getElementById('breathPeriodVal').innerText = '3200 ms';
+      document.getElementById('armedPeriodSlider').value = 1000;
+      document.getElementById('armedPeriodVal').innerText = '1000 ms';
+    } else if (presetKey === 'cyber_rainbow') {
+      setLedPattern(8, 'RAINBOW FLOW', false);
+      setArmedPattern(5, 'SOFT ARMED FLASH', false);
+      setWaveMode(1, 'LOW → HIGH WAVE', false);
+      document.getElementById('waveOffsetSlider').value = 30;
+      document.getElementById('waveOffsetVal').innerText = '30%';
+      document.getElementById('breathPeriodSlider').value = 4000;
+      document.getElementById('breathPeriodVal').innerText = '4000 ms';
+    } else if (presetKey === 'stealth') {
+      setLedPattern(4, 'STEALTH OFF', false);
+    }
+    saveLedSettings();
+  }
+
+  function onCustomColorPick(mode, hexVal) {
+    const r = parseInt(hexVal.substr(1, 2), 16);
+    const g = parseInt(hexVal.substr(3, 2), 16);
+    const b = parseInt(hexVal.substr(5, 2), 16);
+    if (mode === 'standby') {
+      setStandbyColor(r, g, b, hexVal.toUpperCase(), true);
+    } else {
+      setDeployedColor(r, g, b, hexVal.toUpperCase(), true);
+    }
+  }
+
+  function setStandbyColor(r, g, b, hex, autoSave = false) {
+    standbyR = r; standbyG = g; standbyB = b;
+    const h = hex || rgbToHex(r, g, b);
+    document.getElementById('standbyColorHex').innerText = h;
+    const picker = document.getElementById('standbyPicker');
+    if (picker) picker.value = h.toLowerCase();
+    if (autoSave) saveLedSettings();
+    else showToast('Standby color: ' + h);
+  }
+
+  function setDeployedColor(r, g, b, hex, autoSave = false) {
     deployedR = r; deployedG = g; deployedB = b;
-    document.getElementById('deployedColorHex').innerText = hex;
-    showToast('Deployed color selected: ' + hex);
+    const h = hex || rgbToHex(r, g, b);
+    document.getElementById('deployedColorHex').innerText = h;
+    const picker = document.getElementById('deployedPicker');
+    if (picker) picker.value = h.toLowerCase();
+    if (autoSave) saveLedSettings();
+    else showToast('Deployed color: ' + h);
   }
 
   function sendCmd(action) {
@@ -797,16 +1072,25 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
     const minB = document.getElementById('minBrightSlider').value;
     const maxB = document.getElementById('maxBrightSlider').value;
     const period = document.getElementById('breathPeriodSlider').value;
+    const armPer = document.getElementById('armedPeriodSlider').value;
+    const waveOff = document.getElementById('waveOffsetSlider').value;
     const params = new URLSearchParams({
       action: 'led',
       sr: standbyR, sg: standbyG, sb: standbyB,
       dr: deployedR, dg: deployedG, db: deployedB,
-      min_b: minB, max_b: maxB, period: period
+      pattern: ledPattern,
+      arm_pat: armedPattern,
+      wave_mode: waveMode,
+      wave_off: waveOff,
+      min_b: minB, max_b: maxB,
+      period: period,
+      arm_per: armPer,
+      override_state: overrideState
     });
     fetch('/api/settings', { method: 'POST', body: params })
       .then(r => r.json())
-      .then(d => showToast('LED Settings Saved!'))
-      .catch(e => showToast('Save Failed'));
+      .then(d => showToast('Suit Mesh LEDs Synced!'))
+      .catch(e => showToast('Sync Failed'));
   }
 
   function saveMotionSettings() {
@@ -979,6 +1263,75 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(<!DOCTYPE html>
           const seenEl = document.getElementById('wsLastSeenVal');
           if (seenEl) seenEl.innerText = "DISCONNECTED";
           updateBatteryUI(0, 'webshooterVbatText', 'webshooterVbatBar');
+        }
+
+        // Update Suit LED Mesh Nodes Status Bar
+        const wsTag = document.getElementById('meshWsTag');
+        if (wsTag) {
+          wsTag.className = 'mesh-node-tag ' + (data.webshooter.connected ? 'pill-green' : 'pill-amber');
+          wsTag.innerHTML = (data.webshooter.connected ? '&#9679; WEBSHOOTER (LOW)' : '&#9675; WEBSHOOTER (LOW)');
+        }
+        if (data.mesh_nodes) {
+          const chestTag = document.getElementById('meshChestTag');
+          if (chestTag && data.mesh_nodes.chest) {
+            const cOn = data.mesh_nodes.chest.online;
+            chestTag.className = 'mesh-node-tag ' + (cOn ? 'pill-green' : 'pill-amber');
+            chestTag.innerHTML = cOn ? '&#9679; VEST CHEST (MID)' : '&#9675; VEST CHEST (MID)';
+          }
+          const backTag = document.getElementById('meshBackTag');
+          if (backTag && data.mesh_nodes.back) {
+            const bOn = data.mesh_nodes.back.online;
+            backTag.className = 'mesh-node-tag ' + (bOn ? 'pill-green' : 'pill-amber');
+            backTag.innerHTML = bOn ? '&#9679; VEST BACK (MID)' : '&#9675; VEST BACK (MID)';
+          }
+        }
+
+        if (data.settings && data.settings.suit_state !== undefined) {
+          const suitPill = document.getElementById('suitLedActivePill');
+          if (suitPill) {
+            const st = data.settings.suit_state;
+            if (st === 2) {
+              suitPill.innerText = 'FIRING OVERRIDE';
+              suitPill.className = 'status-pill pill-red';
+            } else if (st === 1) {
+              suitPill.innerText = 'ARMED FLASH';
+              suitPill.className = 'status-pill pill-red';
+            } else {
+              suitPill.innerText = (waveMode === 1 ? 'LOW→HIGH WAVE' : (waveMode === 2 ? 'HIGH→LOW WAVE' : 'STANDBY SYNC'));
+              suitPill.className = 'status-pill pill-blue';
+            }
+          }
+        }
+
+        // Hydrate LED & Motion settings on initial page load
+        if (!settingsHydrated && data.settings) {
+          settingsHydrated = true;
+          if (data.settings.sr !== undefined) setStandbyColor(data.settings.sr, data.settings.sg, data.settings.sb, null, false);
+          if (data.settings.dr !== undefined) setDeployedColor(data.settings.dr, data.settings.dg, data.settings.db, null, false);
+          if (data.settings.pattern !== undefined) setLedPattern(data.settings.pattern, null, false);
+          if (data.settings.arm_pat !== undefined) setArmedPattern(data.settings.arm_pat, null, false);
+          if (data.settings.wave_mode !== undefined) setWaveMode(data.settings.wave_mode, null, false);
+          if (data.settings.override_state !== undefined) setOverrideState(data.settings.override_state, false);
+          if (data.settings.wave_off !== undefined) {
+            document.getElementById('waveOffsetSlider').value = data.settings.wave_off;
+            document.getElementById('waveOffsetVal').innerText = data.settings.wave_off + '%';
+          }
+          if (data.settings.min_b !== undefined) {
+            document.getElementById('minBrightSlider').value = data.settings.min_b;
+            document.getElementById('minBrightVal').innerText = data.settings.min_b;
+          }
+          if (data.settings.max_b !== undefined) {
+            document.getElementById('maxBrightSlider').value = data.settings.max_b;
+            document.getElementById('maxBrightVal').innerText = data.settings.max_b;
+          }
+          if (data.settings.period !== undefined) {
+            document.getElementById('breathPeriodSlider').value = data.settings.period;
+            document.getElementById('breathPeriodVal').innerText = data.settings.period + ' ms';
+          }
+          if (data.settings.arm_per !== undefined) {
+            document.getElementById('armedPeriodSlider').value = data.settings.arm_per;
+            document.getElementById('armedPeriodVal').innerText = data.settings.arm_per + ' ms';
+          }
         }
       })
       .catch(e => {})
